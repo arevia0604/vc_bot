@@ -1,5 +1,10 @@
 ﻿require('dotenv').config();
 
+if (!process.env.TOKEN) {
+    console.error("❌ エラー: 環境変数 'TOKEN' が設定されていないか、読み込めていません！");
+    process.exit(1);
+}
+
 const {
     Client,
     GatewayIntentBits,
@@ -23,8 +28,8 @@ const client = new Client({
     ],
 });
 
-const TOKEN = 'MTU2MDkwMjU1Mzg1MDYwOTcxNg.GsOeaD.nnBryIfHMWP3D7vZyKdBmUFbj6JJ01G6x66hFE';
-const CLIENT_ID = '1560902553850609716';
+const TOKEN = process.env.TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
 
 const tempChannels = new Set();
 
@@ -34,7 +39,7 @@ const commands = [
         .setDescription('カスタムチーム作成用のパネルを表示します'),
 ];
 
-const rest = new REST({ version: '10' }).setToken('MTU2MDkwMjU1Mzg1MDYwOTcxNg.GsOeaD.nnBryIfHMWP3D7vZyKdBmUFbj6JJ01G6x66hFE');
+const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
 
 async function registerCommands() {
     try {
@@ -161,4 +166,10 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 });
 
-client.login('MTU2MDkwMjU1Mzg1MDYwOTcxNg.GsOeaD.nnBryIfHMWP3D7vZyKdBmUFbj6JJ01G6x66hFE');
+// デバッグ用のログを仕込む
+console.log("=== TOKEN デバッグ開始 ===");
+console.log("型:", typeof process.env.TOKEN);
+console.log("中身が存在するか:", process.env.TOKEN ? "存在する（長さ: " + process.env.TOKEN.length + "文字）" : "❌ 存在しない（undefined または 空）");
+console.log("=== TOKEN デバッグ終了 ===");
+
+client.login(process.env.TOKEN);
