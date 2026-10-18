@@ -1,11 +1,6 @@
-﻿require('dotenv').config();
-
-if (!process.env.TOKEN) {
-    console.error("❌ エラー: 環境変数 'TOKEN' が設定されていないか、読み込めていません！");
-    process.exit(1);
-}
-
-const {
+﻿import 'dotenv/config';
+import express from 'express';
+import {
     Client,
     GatewayIntentBits,
     SlashCommandBuilder,
@@ -18,18 +13,47 @@ const {
     TextInputBuilder,
     TextInputStyle,
     ChannelType,
-} = require('discord.js');
+} from 'discord.js';
 
+// ==========================================
+// 1. Webサーバーの設定（RenderのPing受け取り用）
+// ==========================================
+const app = express();
+const PORT = process.env.PORT || 10000;
+
+// GASやUptimeRobotなどの外部からアクセスが来たときの処理
+app.get('/', (req, res) => {
+    console.log('🏓 Pingを受信しました！サーバーは稼働中です。');
+    res.status(200).send('I am alive!');
+});
+
+// ポートを開いてサーバーを起動
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Web server is running on port ${PORT}`);
+});
+
+// ==========================================
+// 2. TOKENのデバッグ・環境変数確認
+// ==========================================
+console.log("=== TOKEN デバッグ開始 ===");
+console.log("型:", typeof process.env.TOKEN);
+console.log("中身が存在するか:", process.env.TOKEN ? "存在する（長さ: " + process.env.TOKEN.length + "文字）" : "❌ 存在しない（undefined または 空）");
+console.log("=== TOKEN デバッグ終了 ===");
+
+const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+
+// ==========================================
+// 3. Discord Botの初期化
+// ==========================================
 const client = new Client({
     intents: [
         GatewayIntentBits.Guilds,
-        GatewayIntentBits.GuildVoiceStates,
         GatewayIntentBits.GuildMessages,
-    ],
+        GatewayIntentBits.MessageContent,
+        GatewayIntentBits.GuildVoiceStates,
+    ]
 });
-
-const TOKEN = process.env.TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
 
 const tempChannels = new Set();
 
@@ -39,8 +63,9 @@ const commands = [
         .setDescription('カスタムチーム作成用のパネルを表示します'),
 ];
 
-const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
+const rest = new REST({ version: '10' }).setToken(TOKEN);
 
+// スラッシュコマンドの自動登録
 async function registerCommands() {
     try {
         console.log('スラッシュコマンドを登録中...');
@@ -51,11 +76,14 @@ async function registerCommands() {
     }
 }
 
-client.once('clientReady', (c) => {
-    console.log(`ログインしました: ${c.user.tag}`);
+client.once('ready', (c) => {
+    console.log(`✅ ログインしました: ${c.user.tag}`);
     registerCommands();
 });
 
+// ==========================================
+// 4. ボタン・モーダル・コマンドのインタラクション処理
+// ==========================================
 client.on('interactionCreate', async (interaction) => {
     // --- A. スラッシュコマンド /teampanel ---
     if (interaction.isChatInputCommand() && interaction.commandName === 'teampanel') {
@@ -128,7 +156,7 @@ client.on('interactionCreate', async (interaction) => {
             // 作成されたVCのチャットに案内送信
             await newChannel.send(`🎉 **${member.displayName}** さんがチーム「**${teamName}**」を作成しました！`);
 
-            // ★追加：チーム作成後、同じチャンネルに新しい「チーム作成パネル」を自動で再送信する
+            // チーム作成後、同じチャンネルに新しい「チーム作成パネル」を自動で再送信する
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('open_team_modal')
@@ -150,6 +178,9 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
+// ==========================================
+// 5. ボイスチャンネル自動削除（誰もいなくなったら削除）
+// ==========================================
 client.on('voiceStateUpdate', async (oldState, newState) => {
     const oldChannel = oldState.channel;
 
@@ -158,7 +189,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
             try {
                 await oldChannel.delete();
                 tempChannels.delete(oldChannel.id);
-                console.log(`空になった一時VC [${oldChannel.name}] を削除しました。`);
+                console.log(`🗑️ 空になった一時VC [${oldChannel.name}] を削除しました。`);
             } catch (error) {
                 console.error('VC自動削除エラー:', error);
             }
@@ -166,10 +197,7 @@ client.on('voiceStateUpdate', async (oldState, newState) => {
     }
 });
 
-// デバッグ用のログを仕込む
-console.log("=== TOKEN デバッグ開始 ===");
-console.log("型:", typeof process.env.TOKEN);
-console.log("中身が存在するか:", process.env.TOKEN ? "存在する（長さ: " + process.env.TOKEN.length + "文字）" : "❌ 存在しない（undefined または 空）");
-console.log("=== TOKEN デバッグ終了 ===");
-
-client.login(process.env.TOKEN);
+// ==========================================
+// 6. Botのログイン
+// ==========================================
+client.login(TOKEN);
