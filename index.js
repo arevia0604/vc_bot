@@ -21,30 +21,30 @@ import {
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// GASやUptimeRobotなどの外部からアクセスが来たときの処理
 app.get('/', (req, res) => {
     console.log('🏓 Pingを受信しました！サーバーは稼働中です。');
     res.status(200).send('I am alive!');
 });
 
-// ポートを開いてサーバーを起動
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`Web server is running on port ${PORT}`);
 });
 
 // ==========================================
-// 2. TOKENのデバッグ・環境変数確認
+// 2. トークンと環境変数の確認
 // ==========================================
+const TOKEN = process.env.DISCORD_TOKEN || process.env.TOKEN;
+
 console.log("=== TOKEN デバッグ開始 ===");
-console.log("型:", typeof process.env.TOKEN);
-console.log("中身が存在するか:", process.env.TOKEN ? "存在する（長さ: " + process.env.TOKEN.length + "文字）" : "❌ 存在しない（undefined または 空）");
+console.log("中身が存在するか:", TOKEN ? `存在する（長さ: ${TOKEN.length}文字）` : "❌ 存在しない（undefined または 空）");
 console.log("=== TOKEN デバッグ終了 ===");
 
-const TOKEN = process.env.TOKEN || process.env.DISCORD_TOKEN;
-const CLIENT_ID = process.env.CLIENT_ID;
+if (!TOKEN) {
+    console.error("⚠️ エラー: Discordのトークンが設定されていません。Renderの環境変数を確認してください。");
+}
 
 // ==========================================
-// 3. Discord Botの初期化
+// 3. Discord Botの初期化とコマンド登録関数
 // ==========================================
 const client = new Client({
     intents: [
@@ -57,28 +57,34 @@ const client = new Client({
 
 const tempChannels = new Set();
 
+// 登録するスラッシュコマンド一覧
 const commands = [
     new SlashCommandBuilder()
         .setName('teampanel')
         .setDescription('カスタムチーム作成用のパネルを表示します'),
 ];
 
-const rest = new REST({ version: '10' }).setToken(TOKEN);
-
-// スラッシュコマンドの自動登録
+// スラッシュコマンドをDiscordに登録する関数
 async function registerCommands() {
     try {
-        console.log('スラッシュコマンドを登録中...');
-        await rest.put(Routes.applicationCommands(CLIENT_ID), { body: commands });
-        console.log('スラッシュコマンドの登録が完了しました。');
+        const rest = new REST({ version: '10' }).setToken(TOKEN);
+        console.log('スラッシュコマンドの登録を開始します...');
+
+        await rest.put(
+            Routes.applicationCommands(client.user.id),
+            { body: commands },
+        );
+
+        console.log('スラッシュコマンドの登録が完了しました！');
     } catch (error) {
         console.error('コマンド登録エラー:', error);
     }
 }
 
-client.once('ready', (c) => {
+// ログイン時の処理（v15推奨の clientReady に変更済み）
+client.once('clientReady', async (c) => {
     console.log(`✅ ログインしました: ${c.user.tag}`);
-    registerCommands();
+    await registerCommands();
 });
 
 // ==========================================
