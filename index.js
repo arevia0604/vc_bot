@@ -71,13 +71,23 @@ const commands = [
             sub.setName('panel')
                 .setDescription('ボタンを押してチームを作成できるパネルを表示します')
         )
-        // /teampanel create <team_name> （★新機能：コマンド直接作成）
+        // /teampanel create <team_name>
         .addSubcommand(sub =>
             sub.setName('create')
                 .setDescription('コマンドから直接新しいチーム（VC）を作成します')
                 .addStringOption(opt =>
                     opt.setName('team_name')
                         .setDescription('作成したいチーム名')
+                        .setRequired(true)
+                )
+        )
+        // /teampanel rename <new_name> （★新機能：チーム名変更）
+        .addSubcommand(sub =>
+            sub.setName('rename')
+                .setDescription('現在参加しているチームVCの名前を変更します')
+                .addStringOption(opt =>
+                    opt.setName('new_name')
+                        .setDescription('変更後の新しいチーム名')
                         .setRequired(true)
                 )
         ),
@@ -117,12 +127,13 @@ function getHelpContent() {
 • **\`/teampanel panel\`**
   ➡️ ボタンを押してポップアップ（モーダル）からチーム名を入力・作成できるパネルを送信します。
 • **\`/teampanel create [チーム名]\`**
-  ➡️ **【新機能】** コマンドから直接テキストでチームVCを作成し、自動でそのチャンネルに移動します！
-  *(※事前にいずれかのボイスチャンネルに参加しておく必要があります)*`;
+  ➡️ コマンドから直接テキストでチームVCを作成し、自動でそのチャンネルに移動します。
+• **\`/teampanel rename [新しいチーム名]\`**
+  ➡️ **【新機能】** 現在自分が参加している一時VCの名前を変更します！`;
 }
 
 // ==========================================
-// 6. チームVC作成の共通処理（コマンド＆モーダル共通）
+// 6. チームVC作成の共通処理
 // ==========================================
 async function createTeamVoiceChannel(interaction, teamName) {
     const member = interaction.member;
@@ -137,7 +148,6 @@ async function createTeamVoiceChannel(interaction, teamName) {
     await interaction.deferReply({ ephemeral: true });
 
     try {
-        // VCの作成（実行者が入っているVCと同じカテゴリに作成）
         const newChannel = await interaction.guild.channels.create({
             name: teamName,
             type: ChannelType.GuildVoice,
@@ -147,15 +157,11 @@ async function createTeamVoiceChannel(interaction, teamName) {
         tempChannels.add(newChannel.id);
         await member.voice.setChannel(newChannel);
 
-        // 本人に完了通知
         await interaction.editReply({
             content: `✅ チーム「**${teamName}**」を作成し、移動しました！`,
         });
 
-        // 作成されたVCのチャットに案内送信
         await newChannel.send(`🎉 **${member.displayName}** さんがチーム「**${teamName}**」を作成しました！`);
-
-        // もしチャンネル内（テキストチャンネル）で実行された場合はパネル等も再送信可能ですが、コマンドの場合はシンプルに通知のみで完了します。
 
     } catch (error) {
         console.error('VC作成エラー:', error);
@@ -197,6 +203,46 @@ client.on('interactionCreate', async (interaction) => {
         if (sub === 'create') {
             const teamName = interaction.options.getString('team_name');
             await createTeamVoiceChannel(interaction, teamName);
+            return;
+        }
+
+        // ★新機能：チーム名変更コマンドの処理
+        if (sub === 'rename') {
+            const member = interaction.member;
+            const newName = interaction.options.getString('new_name');
+
+            if (!member || !member.voice.channel) {
+                return interaction.reply({
+                    content: '⚠️ 名前の変更を行いたいボイスチャンネルに参加した状態で実行してください！',
+                    ephemeral: true,
+                });
+            }
+
+            const currentChannel = member.voice.channel;
+
+            // 当該チャンネルがこのBotで管理している一時VCかどうかチェック
+            if (!tempChannels.has(currentChannel.id)) {
+                return interaction.reply({
+                    content: '⚠️ このボイスチャンネルはこのBotで作成された一時VCではないため、名前を変更できません。',
+                    ephemeral: true,
+                });
+            }
+
+            try {
+                const oldName = currentChannel.name;
+                await currentChannel.setName(newName);
+
+                await interaction.reply({
+                    content: `✨ チームVCの名前を「**${oldName}**」から「**${newName}**」に変更しました！`,
+                    ephemeral: true,
+                });
+            } catch (error) {
+                console.error('VC名前変更エラー:', error);
+                await interaction.reply({
+                    content: '⚠️ チャンネル名の変更に失敗しました。Botにチャンネル管理権限があるか確認してください。',
+                    ephemeral: true,
+                });
+            }
             return;
         }
     }
