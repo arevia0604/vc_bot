@@ -64,6 +64,4 @@ client.on('interactionCreate', async (interaction) => {
     }
 });
 
-// ボタン・モーダル・VC自動削除の処理は前回のコードをそのまま維持できます
-
 client.login(TOKEN);
